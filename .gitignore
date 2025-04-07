@@ -1,0 +1,8 @@
+dataset/
+build/
+.idea/
+.ipynb_checkpoints/
+**/.dataset_cache/
+__pycache__/
+*.egg-info/
+.venv/

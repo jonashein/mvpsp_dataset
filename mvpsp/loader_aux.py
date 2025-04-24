@@ -1,7 +1,7 @@
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Sequence, Set, Union
+from typing import Sequence, Set, Union, Tuple
 import numpy as np
 import cv2
 
@@ -154,7 +154,7 @@ class ObjectBboxCrop(DatasetSampleAux):
     def __init__(
         self,
         crop_res: int,
-        im_keys: Sequence[str],
+        im_keys: Set[str],
         crop_scale: float = 1.0,
         crop_suffix: str = "_crop",
         max_bbox_offset_scale: float = 0.05,
@@ -356,4 +356,87 @@ class CNOSMaskLoader(DatasetSampleAux):
                         if self.copy and hasattr(self.default_value, "copy")
                         else self.default_value
                     )
+        return sample
+
+
+class Resize(DatasetSampleAux):
+    def __init__(
+        self,
+        im_keys: Set[str],
+        out_res: Union[int, Tuple[int, int]],
+        keep_aspect_ratio: bool = True,
+        out_suffix: str = "_resize",
+    ):
+        super().__init__()
+        if isinstance(out_res, int):
+            out_res = (out_res, out_res)
+        self.im_keys = im_keys
+        self.out_res = out_res
+        self.keep_aspect_ratio = keep_aspect_ratio
+        self.out_suffix = out_suffix
+
+    def apply(self, sample: Sequence[dict], dataset: dataset_base_class) -> Sequence[dict]:
+        M = None
+        for frame in sample:
+            for key in self.im_keys:
+                if M is None:
+                    in_res = frame[key].shape[:2]
+                    M = np.zeros((2, 3))
+                    scale_x = self.out_res[0] / in_res[1]
+                    scale_y = self.out_res[1] / in_res[0]
+                    if self.keep_aspect_ratio:
+                        scale = min(scale_x, scale_y)
+                        M[0, 0] = scale
+                        M[1, 1] = scale
+                        M[0, 2] = (self.out_res[0] - scale * in_res[1]) / 2
+                        M[1, 2] = (self.out_res[1] - scale * in_res[0]) / 2
+                    else:
+                        M[0, 0] = scale_x
+                        M[1, 1] = scale_y
+                    Ms = np.concatenate((M, [[0, 0, 1]]))
+
+                im = frame[key]
+                interp = (
+                    cv2.INTER_LINEAR
+                    if im.ndim == 2
+                    else np.random.choice(
+                        [cv2.INTER_NEAREST, cv2.INTER_LINEAR, cv2.INTER_AREA, cv2.INTER_CUBIC]
+                    )
+                )
+                frame[f"{key}{self.out_suffix}"] = cv2.warpAffine(im, M, self.out_res, flags=interp)
+                frame[f"M{self.out_suffix}"] = M
+                frame[f"cam_K{self.out_suffix}"] = Ms @ frame["cam_K"]
+        return sample
+
+
+class FilterKeys(DatasetSampleAux):
+    def __init__(
+        self,
+        keep_keys: Set[str] = None,
+        discard_keys: Set[str] = None,
+    ):
+        super().__init__()
+        if keep_keys is not None and len(keep_keys) == 0:
+            keep_keys = None
+        if discard_keys is not None and len(discard_keys) == 0:
+            discard_keys = None
+        if keep_keys is None and discard_keys is None:
+            print("No keys to filter!")
+        elif keep_keys is not None and discard_keys is not None:
+            print(
+                f"Cannot define both keep_keys and discard_keys. Keeping only keys in keep_keys while discarding all others."
+            )
+            self.discard_keys = None
+        self.keep_keys = keep_keys
+        self.discard_keys = discard_keys
+
+    def apply(self, sample: Sequence[dict], dataset: dataset_base_class) -> Sequence[dict]:
+        for frame in sample:
+            if self.keep_keys is not None:
+                for key in frame.keys():
+                    if key not in self.keep_keys:
+                        frame.pop(key)
+            elif self.discard_keys is not None:
+                for key in self.discard_keys:
+                    frame.pop(key, None)
         return sample

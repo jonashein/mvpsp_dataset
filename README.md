@@ -18,6 +18,10 @@ The uncompressed dataset has a size of about 2.9 TiB. We provide an overview of 
 | test_orx     |   79.6 GiB |     96.0 GiB |
 | TOTAL        |    2.4 TiB |      2.9 TiB |
 
+## Installation
+We provide a reference data loader as a python package. 
+To install it, please run `pip install .`.
+
 # Demo
 In `scripts/demo_visualization.ipynb` we provide a simple visualization demo for all modalities.
 It contains reference implementations showcasing how to load monocular and multi-view samples, as well as monocular video sequences.
@@ -27,9 +31,11 @@ This dataset generally follows the [BOP dataset scenewise format](https://github
 After the download and extraction is completed, the dataset should have this structure:
 ```
 README.md (this file)
+mvpsp
+├─ __init__.py
 scripts
 ├─ download.sh  
-├─ demo_visualization.ipynb  
+├─ demo_visualization.ipynb
 datasets
 ├─ mvpsp
 │  ├─ camera_kinect.json
@@ -78,7 +84,7 @@ This dataset consistently uses millimeters for translations, depth maps, and 3D 
 ```
 
 #### scene_hand_eye.json
-For scenes captured from the egocentric perspective (i.e. `camera_id`'s 5 and 6) the `scene_hand_eye.json` provides the 3D hand joint positions as well as the eye gaze origin and direction. 
+For scenes captured from the egocentric perspective (i.e. `camera_id`'s 5 and 6), 3D hand joint positions and eye gaze information is provided in `scene_hand_eye.json`. 
 All positions and directions are expressed in the camera coordinate frame.
 ```
 { 
@@ -104,7 +110,6 @@ If our dataset is relevant for your research, please consider citing our paper:
 	url = {https://www.sciencedirect.com/science/article/pii/S1361841525001604},
 	doi = {10.1016/j.media.2025.103613},
 	shorttitle = {Next-generation surgical navigation},
-	abstract = {State-of-the-art research of traditional computer vision is increasingly leveraged in the surgical domain. A particular focus in computer-assisted surgery is to replace marker-based tracking systems for instrument localization with pure image-based 6DoF pose estimation using deep-learning methods. However, state-of-the-art single-view pose estimation methods do not yet meet the accuracy required for surgical navigation. In this context, we investigate the benefits of multi-view setups for highly accurate and occlusion-robust 6DoF pose estimation of surgical instruments and derive recommendations for an ideal camera system that addresses the challenges in the operating room. Our contributions are threefold. First, we present a multi-view {RGB}-D video dataset of ex-vivo spine surgeries, captured with static and head-mounted cameras and including rich annotations for surgeon, instruments, and patient anatomy. Second, we perform an extensive evaluation of three state-of-the-art single-view and multi-view pose estimation methods, analyzing the impact of camera quantities and positioning, limited real-world data, and static, hybrid, or fully mobile camera setups on the pose accuracy, occlusion robustness, and generalizability. Third, we design a multi-camera system for marker-less surgical instrument tracking, achieving an average position error of 1.01mm and orientation error of 0.89° for a surgical drill, and 2.79mm and 3.33° for a screwdriver under optimal conditions. Our results demonstrate that marker-less tracking of surgical instruments is becoming a feasible alternative to existing marker-based systems.},
 	pages = {103613},
 	journaltitle = {Medical Image Analysis},
 	author = {Hein, Jonas and Cavalcanti, Nicola and Suter, Daniel and Zingg, Lukas and Carrillo, Fabio and Calvet, Lilian and Farshad, Mazda and Navab, Nassir and Pollefeys, Marc and Fürnstahl, Philipp},

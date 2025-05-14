@@ -6,48 +6,48 @@ We provide a total of 23 recordings, comprising 17 training and 4 test sequences
 This repo contains scripts to download the MVPSP dataset, as well as examples on how to read and visualize it.
 
 # Download
-After cloning this repo, run `download_mvpsp.sh -d -u -r .` to automatically download (`-d`) and unpack (`-u`) the dataset, and to remove (`-r`) the compressed archives.
-The compressed dataset has a size of about 2.4 TiB. We provide an overview of the subset sizes below.
+After cloning this repo, run `download_mvpsp.sh -d -u -r datasets/mvpsp/` to automatically download (`-d`) and unpack (`-u`) the dataset, and to remove (`-r`) the compressed archives.
+The uncompressed dataset has a size of about 2.9 TiB. We provide an overview of the subset sizes below.
 
-| Subset       | Compressed | Decompressed |
+| Subset       | Compressed | Uncompressed |
 |--------------|-----------:|-------------:|
 | train_wetlab |    1.7 TiB |      2.0 TiB |
 | train_synth  |    2.2 GiB |      3.2 GiB |
 | train_pbr    |   20.7 GiB |     22.9 GiB |
 | test_wetlab  |  677.3 GiB |    803.6 GiB |
-| test_orx     |   28.3 GiB |     32.7 GiB |
+| test_orx     |   79.6 GiB |     96.0 GiB |
 | TOTAL        |    2.4 TiB |      2.9 TiB |
 
 # Demo
-In `visualize_mvpsp.ipynb` we provide a simple visualization demo for all modalities.
+In `scripts/demo_visualization.ipynb` we provide a simple visualization demo for all modalities.
 It contains reference implementations showcasing how to load monocular and multi-view samples, as well as monocular video sequences.
 
 # Structure
 This dataset generally follows the [BOP dataset scenewise format](https://github.com/thodan/bop_toolkit/blob/8facae674f752f9680c4d2a75bc951a6fd947f1e/docs/bop_datasets_format.md). 
 After the download and extraction is completed, the dataset should have this structure:
 ```
-MVPSP_ROOT_DIR
-├─ README.md (this file)
-├─ download_mvpsp.py
-├─ demo_visualization.ipynb
-├─ mvpsp_dataset.py
-|
-├─ camera_kinect.json
-├─ camera_kinect_4K.json
-├─ camera_hololens2.json
-├─ models[_eval]
-│  ├─ models_info.json
-│  ├─ obj_<obj_id>.ply
-├─ train|test[_SUBSET]
-│  ├─ <recording_id><camera_id>
-│  │  ├─ scene_camera.json
-│  │  ├─ scene_gt.json
-│  │  ├─ scene_gt_info.json
-│  │  ├─ scene_hand_eye.json
-│  │  ├─ depth
-│  │  ├─ mask
-│  │  ├─ mask_visib
-│  │  ├─ rgb
+README.md (this file)
+scripts
+├─ download.sh  
+├─ demo_visualization.ipynb  
+datasets
+├─ mvpsp
+│  ├─ camera_kinect.json
+│  ├─ camera_kinect_4K.json
+│  ├─ camera_hololens2.json
+│  ├─ models[_eval]
+│  │  ├─ models_info.json
+│  │  ├─ obj_<obj_id>.ply
+│  ├─ train|test[_SUBSET]
+│  │  ├─ <recording_id><camera_id>
+│  │  │  ├─ scene_camera.json
+│  │  │  ├─ scene_gt.json
+│  │  │  ├─ scene_gt_info.json
+│  │  │  ├─ [scene_hand_eye.json]
+│  │  │  ├─ depth
+│  │  │  ├─ mask
+│  │  │  ├─ mask_visib
+│  │  │  ├─ rgb
 ```
  
 There are some minor changes to account for the multi-camera video content, which are summarized below:
@@ -71,6 +71,7 @@ This dataset consistently uses millimeters for translations, depth maps, and 3D 
         cam_R_w2c: <3x3 rotation matrix from world to camera coordinate frame, flattened in row-major format>,
         cam_t_w2c: <3x1 translation vector from world to camera coordinate frame, flattened in row-major format>,
         time_us: <frame timestamp in microseconds>,
+        depth_scale: <scaling factor to convert depth maps to mm>,
     },
     ...
 }
@@ -97,12 +98,16 @@ Please note that the hand pose and eye gaze information is provided as recognize
 # Acknowledgements
 If our dataset is relevant for your research, please consider citing our paper:
 ```
-@misc{hein2023nextgeneration,
-      title={Next-generation Surgical Navigation: Marker-less Multi-view 6DoF Pose Estimation of Surgical Instruments},
-      author={Jonas Hein and Nicola Cavalcanti and Daniel Suter and Lukas Zingg and Fabio Carrillo and Lilian Calvet and Mazda Farshad and Marc Pollefeys and Nassir Navab and Philipp Fürnstahl},
-      year={2023},
-      eprint={2305.03535},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
+@article{hein_next-generation_2025,
+	title = {Next-generation surgical navigation: Marker-less multi-view 6DoF pose estimation of surgical instruments},
+	issn = {1361-8415},
+	url = {https://www.sciencedirect.com/science/article/pii/S1361841525001604},
+	doi = {10.1016/j.media.2025.103613},
+	shorttitle = {Next-generation surgical navigation},
+	abstract = {State-of-the-art research of traditional computer vision is increasingly leveraged in the surgical domain. A particular focus in computer-assisted surgery is to replace marker-based tracking systems for instrument localization with pure image-based 6DoF pose estimation using deep-learning methods. However, state-of-the-art single-view pose estimation methods do not yet meet the accuracy required for surgical navigation. In this context, we investigate the benefits of multi-view setups for highly accurate and occlusion-robust 6DoF pose estimation of surgical instruments and derive recommendations for an ideal camera system that addresses the challenges in the operating room. Our contributions are threefold. First, we present a multi-view {RGB}-D video dataset of ex-vivo spine surgeries, captured with static and head-mounted cameras and including rich annotations for surgeon, instruments, and patient anatomy. Second, we perform an extensive evaluation of three state-of-the-art single-view and multi-view pose estimation methods, analyzing the impact of camera quantities and positioning, limited real-world data, and static, hybrid, or fully mobile camera setups on the pose accuracy, occlusion robustness, and generalizability. Third, we design a multi-camera system for marker-less surgical instrument tracking, achieving an average position error of 1.01mm and orientation error of 0.89° for a surgical drill, and 2.79mm and 3.33° for a screwdriver under optimal conditions. Our results demonstrate that marker-less tracking of surgical instruments is becoming a feasible alternative to existing marker-based systems.},
+	pages = {103613},
+	journaltitle = {Medical Image Analysis},
+	author = {Hein, Jonas and Cavalcanti, Nicola and Suter, Daniel and Zingg, Lukas and Carrillo, Fabio and Calvet, Lilian and Farshad, Mazda and Navab, Nassir and Pollefeys, Marc and Fürnstahl, Philipp},
+	keywords = {Deep Learning, Marker-less tracking, Multi-view {RGB}-D video dataset, Object pose estimation, Surgical instruments, Surgical navigation},
 }
 ```

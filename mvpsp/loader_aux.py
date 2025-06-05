@@ -362,7 +362,7 @@ class CNOSMaskLoader(DatasetSampleAux):
 class Resize(DatasetSampleAux):
     def __init__(
         self,
-        im_keys: Set[str],
+        im_keys: Union[str, Set[str]],
         out_res: Union[int, Tuple[int, int]],
         keep_aspect_ratio: bool = True,
         out_suffix: str = "_resize",
@@ -370,6 +370,8 @@ class Resize(DatasetSampleAux):
         super().__init__()
         if isinstance(out_res, int):
             out_res = (out_res, out_res)
+        if isinstance(im_keys, str):
+            im_keys = {im_keys}
         self.im_keys = im_keys
         self.out_res = out_res
         self.keep_aspect_ratio = keep_aspect_ratio

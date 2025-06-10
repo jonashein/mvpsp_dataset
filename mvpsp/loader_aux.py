@@ -367,13 +367,19 @@ class Resize(DatasetSampleAux):
         keep_aspect_ratio: bool = True,
         out_suffix: str = "_resize",
     ):
+        """
+
+        :param im_keys:
+        :param out_res: int or tuple of ints (H, W).
+        :param keep_aspect_ratio:
+        :param out_suffix:
+        """
         super().__init__()
-        if isinstance(out_res, int):
-            out_res = (out_res, out_res)
         if isinstance(im_keys, str):
             im_keys = {im_keys}
         self.im_keys = im_keys
-        self.out_res = out_res
+        self._out_res_fully_defined = isinstance(out_res, Tuple)
+        self.out_res = out_res if self._out_res_fully_defined else (out_res, out_res)
         self.keep_aspect_ratio = keep_aspect_ratio
         self.out_suffix = out_suffix
 
@@ -384,15 +390,21 @@ class Resize(DatasetSampleAux):
                 if M is None:
                     in_res = frame[key].shape[:2]
                     M = np.zeros((2, 3))
-                    scale_x = self.out_res[0] / in_res[1]
-                    scale_y = self.out_res[1] / in_res[0]
+                    scale_x = self.out_res[1] / in_res[1]
+                    scale_y = self.out_res[0] / in_res[0]
                     if self.keep_aspect_ratio:
                         scale = min(scale_x, scale_y)
                         M[0, 0] = scale
                         M[1, 1] = scale
-                        M[0, 2] = (self.out_res[0] - scale * in_res[1]) / 2
-                        M[1, 2] = (self.out_res[1] - scale * in_res[0]) / 2
+                        if self._out_res_fully_defined:
+                            out_res = self.out_res
+                            # add padding
+                            M[0, 2] = (out_res[1] - scale * in_res[1]) / 2
+                            M[1, 2] = (out_res[0] - scale * in_res[0]) / 2
+                        else:
+                            out_res = (int(round(in_res[0] * scale)), int(round(in_res[1] * scale)))
                     else:
+                        out_res = self.out_res
                         M[0, 0] = scale_x
                         M[1, 1] = scale_y
                     Ms = np.concatenate((M, [[0, 0, 1]]))
@@ -405,7 +417,9 @@ class Resize(DatasetSampleAux):
                         [cv2.INTER_NEAREST, cv2.INTER_LINEAR, cv2.INTER_AREA, cv2.INTER_CUBIC]
                     )
                 )
-                frame[f"{key}{self.out_suffix}"] = cv2.warpAffine(im, M, self.out_res, flags=interp)
+                frame[f"{key}{self.out_suffix}"] = cv2.warpAffine(
+                    im, M, (out_res[1], out_res[0]), flags=interp
+                )
                 frame[f"M{self.out_suffix}"] = M
                 frame[f"cam_K{self.out_suffix}"] = Ms @ frame["cam_K"]
         return sample

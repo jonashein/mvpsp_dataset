@@ -488,7 +488,8 @@ class MvpspSingleviewDataset(MVPSP):
         root_dir: Union[Path, str],
         is_test: bool = False,
         include_subsets: Union[list, str] = None,
-        include_scenes: Sequence[int] = None,
+        include_rec_ids: list = None,
+        include_cam_ids: list = None,
         models_subdir: str = "models_eval",
         cache_dir: Union[Path, str] = None,
         num_workers=cpu_count(),
@@ -498,7 +499,8 @@ class MvpspSingleviewDataset(MVPSP):
         :param root_dir: Path to the MVPSP dataset root directory.
         :param is_test: Indicate whether the dataset is used for training or testing.
         :param include_subsets: A string or list of strings indicating the subsets to load, or None to include all subsets based on is_test.
-        :param include_scenes: A list of scene ids to load, or None to include all.
+        :param include_rec_ids: A list of recording ids to load, or None to include all.
+        :param include_cam_ids: A list of camera ids to load, or None to include all.
         :param cache_dir: Path to an optional cache directory. Set to None to disable caching.
         """
 
@@ -529,7 +531,9 @@ class MvpspSingleviewDataset(MVPSP):
                     print(f"WARNING: LOADING TEST SUBSET {s} AT TRAINING TIME!")
                 self.include_subsets.append(s)
         assert len(self.include_subsets) > 0, f"No subsets given"
-        self.include_scenes = include_scenes
+
+        self.include_cam_ids = include_cam_ids
+        self.include_rec_ids = include_rec_ids
 
         # Try to load metadata from cache
         if cache_dir is not None:
@@ -611,8 +615,14 @@ class MvpspSingleviewDataset(MVPSP):
                 ):
                     continue
 
-                scene_id = int(scene_dir.stem)
-                if self.include_scenes is not None and scene_id not in self.include_scenes:
+                rec_id = int(scene_dir.stem[:3])
+                cam_id = int(scene_dir.stem[3:])
+                if (
+                    self.include_rec_ids is not None
+                    and rec_id not in self.include_rec_ids
+                    or self.include_cam_ids is not None
+                    and cam_id not in self.include_cam_ids
+                ):
                     continue
                 worker_args.append(
                     (
@@ -671,12 +681,18 @@ class MvpspSingleviewDataset(MVPSP):
         cache_index = json.loads(index_file.read_text())
         dataset_key = self.__class__.__name__
         subset_key = ",".join(sorted(self.include_subsets))
-        scene_ids_key = (
-            ",".join(map(str, sorted(self.include_scenes)))
-            if self.include_scenes is not None
+        rec_ids_key = (
+            ",".join(map(str, sorted(self.include_rec_ids)))
+            if self.include_rec_ids is not None
             else "All"
         )
-        cache_file = cache_index.get(dataset_key, {}).get(subset_key, {}).get(scene_ids_key, None)
+        cam_ids_key = ",".join(map(str, sorted(self.include_cam_ids)))
+        cache_file = (
+            cache_index.get(dataset_key, {})
+            .get(subset_key, {})
+            .get(rec_ids_key, {})
+            .get(cam_ids_key, None)
+        )
         if cache_file is None:
             return False
         cache_file = cache_dir / cache_file
@@ -699,19 +715,25 @@ class MvpspSingleviewDataset(MVPSP):
             cache_index = {}
         dataset_key = self.__class__.__name__
         subset_key = ",".join(sorted(self.include_subsets))
-        scene_ids_key = (
-            ",".join(map(str, sorted(self.include_scenes)))
-            if self.include_scenes is not None
+        rec_ids_key = (
+            ",".join(map(str, sorted(self.include_rec_ids)))
+            if self.include_rec_ids is not None
             else "All"
         )
-        cache_file = cache_index.get(dataset_key, {}).get(subset_key, {}).get(scene_ids_key, None)
+        cam_ids_key = ",".join(map(str, sorted(self.include_cam_ids)))
+        cache_file = (
+            cache_index.get(dataset_key, {})
+            .get(subset_key, {})
+            .get(rec_ids_key, {})
+            .get(cam_ids_key, None)
+        )
         if cache_file is None:
             cache_id = 1
             while (cache_dir / f"cache_{cache_id:04d}.npz").is_file():
                 cache_id += 1
             cache_file = cache_dir / f"cache_{cache_id:04d}.npz"
         np.savez_compressed(cache_file, frames=self.frames)
-        cache_update = {dataset_key: {subset_key: {scene_ids_key: cache_file.name}}}
+        cache_update = {dataset_key: {subset_key: {rec_ids_key: {cam_ids_key: cache_file.name}}}}
         cache_index = nested_dict_update(cache_index, cache_update)
         index_file.write_text(json.dumps(cache_index))
         print(f"Saved frame metadata to cache: {cache_file}")
@@ -868,8 +890,8 @@ class MvpspMultiviewDataset(MVPSP):
         root_dir: Union[Path, str],
         is_test: bool = False,
         include_subsets: Union[list, str] = None,
-        include_rec_ids: Sequence[int] = None,
-        include_cam_ids: Sequence[int] = None,
+        include_rec_ids: list = None,
+        include_cam_ids: list = None,
         models_subdir: str = "models_eval",
         cache_dir: Union[Path, str] = None,
         max_temporal_offset_us: int = 8e3,
@@ -911,38 +933,12 @@ class MvpspMultiviewDataset(MVPSP):
                     print(f"WARNING: LOADING TEST SUBSET {s} AT TRAINING TIME!")
                 subsets_filtered.append(s)
 
-        # parse camera ids
-        if include_cam_ids is None:
-            include_cam_ids = set(MVPSP.CAMERAS)
-            if MVPSP.TEST_SUBSET_WETLAB in subsets_filtered:
-                include_cam_ids &= set(MVPSP.CAMERAS_WETLAB)
-            if MVPSP.TEST_SUBSET_ORX in subsets_filtered:
-                include_cam_ids &= set(MVPSP.CAMERAS_ORX)
-            include_cam_ids = list(include_cam_ids)
-
-        cam_ids = []
-        for cam_id in include_cam_ids:
-            if (
-                MVPSP.TEST_SUBSET_WETLAB in subsets_filtered and cam_id not in MVPSP.CAMERAS_WETLAB
-            ) or (MVPSP.TEST_SUBSET_ORX in subsets_filtered and cam_id not in MVPSP.CAMERAS_ORX):
-                print(f"WARNING: Camera ID {cam_id} is invalid and will be ignored.")
-            else:
-                cam_ids.append(cam_id)
-        self.include_cam_ids = cam_ids
-        self.include_rec_ids = include_rec_ids
-
-        # create list of all relevant scene ids
-        include_scene_ids = []
-        for rec_id in include_rec_ids:
-            for cam_id in include_cam_ids:
-                scene_id = 1000 * rec_id + cam_id
-                include_scene_ids.append(scene_id)
-
         self.frames = MvpspSingleviewDataset(
             root_dir=root_dir,
             is_test=is_test,
             include_subsets=subsets_filtered,
-            include_scenes=include_scene_ids,
+            include_rec_ids=include_rec_ids,
+            include_cam_ids=include_cam_ids,
             models_subdir=models_subdir,
             cache_dir=cache_dir,
             num_workers=num_workers,
@@ -1011,7 +1007,7 @@ class MvpspMultiviewDataset(MVPSP):
 
     def _create_multiview_index_for_recording(self, rec_frames):
         indices = []
-        cam_indices = {cam_id: 0 for cam_id in self.include_cam_ids}
+        cam_indices = {cam_id: 0 for cam_id in self.frames.include_cam_ids}
         while cam_indices is not None:
             # initialize multiview candidate defined by cam_indices
             cam_timestamps = {}
@@ -1047,7 +1043,10 @@ class MvpspMultiviewDataset(MVPSP):
             cam_indices = self._locally_minimize_multiview_std(rec_frames, cam_indices)
             if cam_indices is not None:
                 indices.append(
-                    [rec_frames[cam_id][cam_indices[cam_id]] for cam_id in self.include_cam_ids]
+                    [
+                        rec_frames[cam_id][cam_indices[cam_id]]
+                        for cam_id in self.frames.include_cam_ids
+                    ]
                 )
                 for cam_id in cam_indices:
                     cam_indices[cam_id] += 1
@@ -1071,13 +1070,13 @@ class MvpspMultiviewDataset(MVPSP):
         for rec_id, rec_frames in scene_frames.items():
             # skip recordings with missing cameras
             skip_recording = False
-            for cam_id in self.include_cam_ids:
+            for cam_id in self.frames.include_cam_ids:
                 if cam_id not in rec_frames:
                     skip_recording = True
                     break
             if skip_recording:
                 print(
-                    f"Skipping recording id {rec_id} due to missing cameras (requested {','.join(self.include_cam_ids)})"
+                    f"Skipping recording id {rec_id} due to missing cameras (requested {','.join(self.frames.include_cam_ids)})"
                 )
                 continue
             verified_recs.append(rec_frames)
@@ -1109,11 +1108,11 @@ class MvpspMultiviewDataset(MVPSP):
         dataset_key = self.__class__.__name__
         subset_key = ",".join(sorted(self.frames.include_subsets))
         rec_ids_key = (
-            ",".join(map(str, sorted(self.include_rec_ids)))
-            if self.include_rec_ids is not None
+            ",".join(map(str, sorted(self.frames.include_rec_ids)))
+            if self.frames.include_rec_ids is not None
             else "All"
         )
-        cam_ids_key = ",".join(map(str, sorted(self.include_cam_ids)))
+        cam_ids_key = ",".join(map(str, sorted(self.frames.include_cam_ids)))
         mto_key = str(self.max_temporal_offset_us)
         cache_file = (
             cache_index.get(dataset_key, {})
@@ -1146,10 +1145,10 @@ class MvpspMultiviewDataset(MVPSP):
         subset_key = ",".join(sorted(self.frames.include_subsets))
         rec_ids_key = (
             ",".join(map(str, sorted(self.frames.include_rec_ids)))
-            if self.include_rec_ids is not None
+            if self.frames.include_rec_ids is not None
             else "All"
         )
-        cam_ids_key = ",".join(map(str, sorted(self.include_cam_ids)))
+        cam_ids_key = ",".join(map(str, sorted(self.frames.include_cam_ids)))
         mto_key = str(self.max_temporal_offset_us)
         cache_file = (
             cache_index.get(dataset_key, {})
@@ -1334,7 +1333,8 @@ class MvpspSingleviewSequenceDataset(MVPSP):
         root_dir: Union[Path, str],
         is_test: bool = False,
         include_subsets: Union[list, str] = None,
-        include_scenes: Sequence[int] = None,
+        include_rec_ids: list = None,
+        include_cam_ids: list = None,
         models_subdir: str = "models_eval",
         cache_dir: Union[Path, str] = None,
         sequence_length: int = 2,
@@ -1347,7 +1347,8 @@ class MvpspSingleviewSequenceDataset(MVPSP):
         :param root_dir: Path to the MVPSP dataset root directory.
         :param is_test: Indicate whether the dataset is used for training or testing.
         :param include_subsets: A string or list of strings indicating the subsets to load, or None to include all subsets based on is_test.
-        :param include_scenes: A list of scene ids to load, or None to include all.
+        :param include_rec_ids: A list of recording ids to include in the index, or None to include all.
+        :param include_cam_ids: A list of camera ids to include in the index, or None to include all.
         :param cache_dir: Path to an optional cache directory. Set to None to disable caching.
         :param sequence_length: The number of consecutive frames in each sequence.
         :param sequence_stride: The default value of 0 indicates a stride of sequence_length, effectively returning non-overlapping sequences.
@@ -1393,7 +1394,8 @@ class MvpspSingleviewSequenceDataset(MVPSP):
             root_dir=root_dir,
             is_test=is_test,
             include_subsets=subsets_filtered,
-            include_scenes=include_scenes,
+            include_rec_ids=include_rec_ids,
+            include_cam_ids=include_cam_ids,
             cache_dir=cache_dir,
             models_subdir=models_subdir,
         )
@@ -1466,18 +1468,20 @@ class MvpspSingleviewSequenceDataset(MVPSP):
         cache_index = json.loads(index_file.read_text())
         dataset_key = self.__class__.__name__
         subset_key = ",".join(sorted(self.frames.include_subsets))
-        scene_ids_key = (
-            ",".join(map(str, sorted(self.frames.include_scenes)))
-            if self.frames.include_scenes is not None
+        rec_ids_key = (
+            ",".join(map(str, sorted(self.frames.include_rec_ids)))
+            if self.frames.include_rec_ids is not None
             else "All"
         )
+        cam_ids_key = ",".join(map(str, sorted(self.frames.include_cam_ids)))
         seq_length_key = str(self.sequence_length)
         seq_stride_key = str(self.sequence_stride)
         seq_mfgap_key = str(self.max_frame_gap_us)
         cache_file = (
             cache_index.get(dataset_key, {})
             .get(subset_key, {})
-            .get(scene_ids_key, {})
+            .get(rec_ids_key, {})
+            .get(cam_ids_key, {})
             .get(seq_length_key, {})
             .get(seq_stride_key, {})
             .get(seq_mfgap_key, None)
@@ -1504,18 +1508,20 @@ class MvpspSingleviewSequenceDataset(MVPSP):
             cache_index = {}
         dataset_key = self.__class__.__name__
         subset_key = ",".join(sorted(self.frames.include_subsets))
-        scene_ids_key = (
-            ",".join(map(str, sorted(self.frames.include_scenes)))
-            if self.frames.include_scenes is not None
+        rec_ids_key = (
+            ",".join(map(str, sorted(self.frames.include_rec_ids)))
+            if self.frames.include_rec_ids is not None
             else "All"
         )
+        cam_ids_key = ",".join(map(str, sorted(self.frames.include_cam_ids)))
         seq_length_key = str(self.sequence_length)
         seq_stride_key = str(self.sequence_stride)
         seq_mfgap_key = str(self.max_frame_gap_us)
         cache_file = (
             cache_index.get(dataset_key, {})
             .get(subset_key, {})
-            .get(scene_ids_key, {})
+            .get(rec_ids_key, {})
+            .get(cam_ids_key, {})
             .get(seq_length_key, {})
             .get(seq_stride_key, {})
             .get(seq_mfgap_key, None)
@@ -1529,8 +1535,10 @@ class MvpspSingleviewSequenceDataset(MVPSP):
         cache_update = {
             dataset_key: {
                 subset_key: {
-                    scene_ids_key: {
-                        seq_length_key: {seq_stride_key: {seq_mfgap_key: cache_file.name}}
+                    rec_ids_key: {
+                        cam_ids_key: {
+                            seq_length_key: {seq_stride_key: {seq_mfgap_key: cache_file.name}}
+                        }
                     }
                 }
             }

@@ -531,27 +531,8 @@ class MvpspSingleviewDataset(MVPSP):
                     print(f"WARNING: LOADING TEST SUBSET {s} AT TRAINING TIME!")
                 self.include_subsets.append(s)
         assert len(self.include_subsets) > 0, f"No subsets given"
-        # parse camera ids
-        if include_cam_ids is None:
-            include_cam_ids = set(MVPSP.CAMERAS)
-            if MVPSP.TEST_SUBSET_WETLAB in self.include_subsets:
-                include_cam_ids &= set(MVPSP.CAMERAS_WETLAB)
-            if MVPSP.TEST_SUBSET_ORX in self.include_subsets:
-                include_cam_ids &= set(MVPSP.CAMERAS_ORX)
-            include_cam_ids = list(include_cam_ids)
 
-        self.include_cam_ids = []
-        for cam_id in include_cam_ids:
-            if (
-                MVPSP.TEST_SUBSET_WETLAB in self.include_subsets
-                and cam_id not in MVPSP.CAMERAS_WETLAB
-            ) or (
-                MVPSP.TEST_SUBSET_ORX in self.include_subsets and cam_id not in MVPSP.CAMERAS_ORX
-            ):
-                print(f"WARNING: Camera ID {cam_id} is invalid and will be ignored.")
-            else:
-                self.include_cam_ids.append(cam_id)
-        # parse recording ids
+        self.include_cam_ids = include_cam_ids
         self.include_rec_ids = include_rec_ids
 
         # Try to load metadata from cache
@@ -951,25 +932,6 @@ class MvpspMultiviewDataset(MVPSP):
                 elif not is_test and s in MVPSP.TEST_SUBSETS:
                     print(f"WARNING: LOADING TEST SUBSET {s} AT TRAINING TIME!")
                 subsets_filtered.append(s)
-
-        # parse camera ids
-        if include_cam_ids is None:
-            include_cam_ids = set(MVPSP.CAMERAS)
-            if MVPSP.TEST_SUBSET_WETLAB in subsets_filtered:
-                include_cam_ids &= set(MVPSP.CAMERAS_WETLAB)
-            if MVPSP.TEST_SUBSET_ORX in subsets_filtered:
-                include_cam_ids &= set(MVPSP.CAMERAS_ORX)
-            include_cam_ids = list(include_cam_ids)
-
-        cam_ids = []
-        for cam_id in include_cam_ids:
-            if (
-                MVPSP.TEST_SUBSET_WETLAB in subsets_filtered and cam_id not in MVPSP.CAMERAS_WETLAB
-            ) or (MVPSP.TEST_SUBSET_ORX in subsets_filtered and cam_id not in MVPSP.CAMERAS_ORX):
-                print(f"WARNING: Camera ID {cam_id} is invalid and will be ignored.")
-            else:
-                cam_ids.append(cam_id)
-        include_cam_ids = cam_ids
 
         self.frames = MvpspSingleviewDataset(
             root_dir=root_dir,

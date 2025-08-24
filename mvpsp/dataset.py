@@ -1007,7 +1007,7 @@ class MvpspMultiviewDataset(MVPSP):
 
     def _create_multiview_index_for_recording(self, rec_frames):
         indices = []
-        cam_indices = {cam_id: 0 for cam_id in self.frames.include_cam_ids}
+        cam_indices = {cam_id: 0 for cam_id in rec_frames.keys()}
         while cam_indices is not None:
             # initialize multiview candidate defined by cam_indices
             cam_timestamps = {}
@@ -1043,10 +1043,7 @@ class MvpspMultiviewDataset(MVPSP):
             cam_indices = self._locally_minimize_multiview_std(rec_frames, cam_indices)
             if cam_indices is not None:
                 indices.append(
-                    [
-                        rec_frames[cam_id][cam_indices[cam_id]]
-                        for cam_id in self.frames.include_cam_ids
-                    ]
+                    [rec_frames[cam_id][cam_indices[cam_id]] for cam_id in rec_frames.keys()]
                 )
                 for cam_id in cam_indices:
                     cam_indices[cam_id] += 1
@@ -1056,9 +1053,11 @@ class MvpspMultiviewDataset(MVPSP):
         print("Compute multi-view index...")
         # group frames by recording and camera
         scene_frames = {}
+        all_cam_ids = set()
         for frame_idx, frame in enumerate(self.frames):
             rec_id = frame["rec_id"]
             cam_id = frame["cam_id"]
+            all_cam_ids.add(cam_id)
             if rec_id not in scene_frames:
                 scene_frames[rec_id] = {}
             if cam_id not in scene_frames[rec_id]:
@@ -1070,13 +1069,13 @@ class MvpspMultiviewDataset(MVPSP):
         for rec_id, rec_frames in scene_frames.items():
             # skip recordings with missing cameras
             skip_recording = False
-            for cam_id in self.frames.include_cam_ids:
+            for cam_id in all_cam_ids:
                 if cam_id not in rec_frames:
                     skip_recording = True
                     break
             if skip_recording:
                 print(
-                    f"Skipping recording id {rec_id} due to missing cameras (requested {','.join(self.frames.include_cam_ids)})"
+                    f"Skipping recording id {rec_id} due to missing cameras (requested {','.join(all_cam_ids)})"
                 )
                 continue
             verified_recs.append(rec_frames)

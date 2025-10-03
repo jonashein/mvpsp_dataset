@@ -844,7 +844,7 @@ class MvpspSingleviewDataset(MVPSP):
         return len(self.frames)
 
     def __getitem__(self, idx):
-        return self.frames[idx]
+        return self.frames[idx].copy()
 
     def as_bop_targets(self, out_path: Path = None):
         targets = []

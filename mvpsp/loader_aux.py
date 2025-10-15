@@ -365,6 +365,7 @@ class Resize(DatasetSampleAux):
         im_keys: Union[str, Set[str]],
         out_res: Union[int, Tuple[int, int]],
         keep_aspect_ratio: bool = True,
+        allow_upscaling: bool = True,
         out_suffix: str = "_resize",
     ):
         """
@@ -378,9 +379,10 @@ class Resize(DatasetSampleAux):
         if isinstance(im_keys, str):
             im_keys = {im_keys}
         self.im_keys = im_keys
-        self._out_res_fully_defined = isinstance(out_res, Tuple)
-        self.out_res = out_res if self._out_res_fully_defined else (out_res, out_res)
+        self.out_res_fully_defined = isinstance(out_res, Tuple)
+        self.out_res = out_res if self.out_res_fully_defined else (out_res, out_res)
         self.keep_aspect_ratio = keep_aspect_ratio
+        self.allow_upscaling = allow_upscaling
         self.out_suffix = out_suffix
 
     def apply(self, sample: Sequence[dict], dataset: dataset_base_class) -> Sequence[dict]:
@@ -389,25 +391,34 @@ class Resize(DatasetSampleAux):
             for key in self.im_keys:
                 if M is None:
                     in_res = frame[key].shape[:2]
-                    M = np.zeros((2, 3))
+                    # compute scale
                     scale_x = self.out_res[1] / in_res[1]
                     scale_y = self.out_res[0] / in_res[0]
+                    if not self.allow_upscaling:
+                        scale_x = min(1.0, scale_x)
+                        scale_y = min(1.0, scale_y)
+                    # compute homography
+                    M = np.zeros((2, 3))
                     if self.keep_aspect_ratio:
                         scale = min(scale_x, scale_y)
                         M[0, 0] = scale
                         M[1, 1] = scale
-                        if self._out_res_fully_defined:
-                            out_res = self.out_res
-                            # add padding
-                            M[0, 2] = (out_res[1] - scale * in_res[1]) / 2
-                            M[1, 2] = (out_res[0] - scale * in_res[0]) / 2
-                        else:
-                            out_res = (int(round(in_res[0] * scale)), int(round(in_res[1] * scale)))
                     else:
-                        out_res = self.out_res
                         M[0, 0] = scale_x
                         M[1, 1] = scale_y
                     Ms = np.concatenate((M, [[0, 0, 1]]))
+                    # compute output size
+                    if self.out_res_fully_defined:
+                        out_res = self.out_res
+                        # add padding
+                        M[0, 2] = (out_res[1] - M[0, 0] * in_res[1]) / 2
+                        M[1, 2] = (out_res[0] - M[1, 1] * in_res[0]) / 2
+                    else:
+                        out_res = (int(round(in_res[0] * M[1, 1])), int(round(in_res[1] * M[0, 0])))
+                elif frame[key].shape[:2] != in_res:
+                    logging.warning(
+                        f"Homography computed from image with resolution {in_res} is applied to image of shape {frame[key].shape[:2]}!"
+                    )
 
                 im = frame[key]
                 interp = (

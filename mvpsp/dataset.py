@@ -1310,7 +1310,7 @@ class MvpspMultiviewDataset(MVPSP):
         targets = []
         for i in range(len(self)):
             if enforce_n_cams > 0 and len(self[i]) != enforce_n_cams:
-                logging.info(f"Skipping frame {i} with cam_ids {",".join(map(str,sorted([frame['cam_id'] for frame in self[i]])))} due to enforced camera count of {enforce_n_cams}")
+                logging.info(f"Skipping frame {i} with cam_ids {','.join(map(str,sorted([frame['cam_id'] for frame in self[i]])))} due to enforced camera count of {enforce_n_cams}")
                 continue
             for frame in self[i]:
                 for obj in frame.get("objects", []):

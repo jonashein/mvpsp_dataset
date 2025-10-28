@@ -1306,9 +1306,12 @@ class MvpspMultiviewDataset(MVPSP):
     def __getitem__(self, idx):
         return [self.frames[i] for i in self.index[idx]]
 
-    def as_bop_targets(self, out_path: Path = None):
+    def as_bop_targets(self, out_path: Path = None, enforce_n_cams: int = 0):
         targets = []
         for i in range(len(self)):
+            if enforce_n_cams > 0 and len(self[i]) != enforce_n_cams:
+                logging.info(f"Skipping frame {i} with cam_ids {",".join(map(str,sorted([frame['cam_id'] for frame in self[i]])))} due to enforced camera count of {enforce_n_cams}")
+                continue
             for frame in self[i]:
                 for obj in frame.get("objects", []):
                     targets.append(

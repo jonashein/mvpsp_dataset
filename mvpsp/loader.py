@@ -46,7 +46,7 @@ class SingleViewObjectLoader(dataset_base_class):
 
     def __getitem__(self, index):
         sample_idx, obj_idx = self.index[index]
-        item = self.dataset[sample_idx].copy()
+        item = self.dataset[sample_idx]
         item.update(item["objects"][obj_idx])
         item.pop("objects", None)
         for aux in self.auxs:
@@ -107,7 +107,7 @@ class MultiViewObjectLoader(dataset_base_class):
     def __getitem__(self, index):
         sample_idx, obj_idx_per_frame_idx = self.index[index]
         # create copy of sample, keep only the selected object instance
-        sample = [frame.copy() for frame in self.dataset[sample_idx]]
+        sample = self.dataset[sample_idx]
         for frame_idx, frame in enumerate(sample):
             obj_idx = obj_idx_per_frame_idx.get(frame_idx, None)
             if obj_idx is not None:

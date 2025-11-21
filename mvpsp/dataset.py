@@ -14,6 +14,7 @@ import trimesh
 from .utils import NestedDict, nested_dict_update
 from multiprocessing import Pool, cpu_count
 from itertools import chain
+from copy import deepcopy
 
 
 class MVPSP(object):
@@ -844,7 +845,7 @@ class MvpspSingleviewDataset(MVPSP):
         return len(self.frames)
 
     def __getitem__(self, idx):
-        return self.frames[idx].copy()
+        return deepcopy(self.frames[idx])
 
     def as_bop_targets(self, out_path: Path = None):
         targets = []

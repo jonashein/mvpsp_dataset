@@ -841,6 +841,9 @@ class MvpspSingleviewDataset(MVPSP):
         """
         self.frames = [v for v in self.frames if fn(v)]
 
+    def get_object_dict(self):
+        return self.objects.copy()
+
     def __len__(self):
         return len(self.frames)
 
@@ -1301,6 +1304,9 @@ class MvpspMultiviewDataset(MVPSP):
         """
         self.index = [sample for i, sample in enumerate(self.index) if fn(self[i])]
 
+    def get_object_dict(self):
+        return self.frames.get_object_dict()
+
     def __len__(self):
         return len(self.index)
 
@@ -1681,6 +1687,9 @@ class MvpspSingleviewSequenceDataset(MVPSP):
         else:
             index = range(len(self.frames))
         self.index = [i for i in index if fn(self[i])]
+
+    def get_object_dict(self):
+        return self.frames.get_object_dict()
 
     def __len__(self):
         return len(self.index)

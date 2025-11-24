@@ -41,6 +41,9 @@ class SingleViewObjectLoader(dataset_base_class):
             for obj_idx, _ in enumerate(self.dataset[sample_idx].get("objects", [])):
                 self.index.append((sample_idx, obj_idx))
 
+    def get_object_dict(self):
+        return self.dataset.get_object_dict()
+
     def __len__(self):
         return len(self.index)
 
@@ -100,6 +103,9 @@ class MultiViewObjectLoader(dataset_base_class):
             for _, obj_insts in obj_insts.items():
                 for _, obj_idx_per_frame_idx in obj_insts:
                     self.index.append((sample_idx, obj_idx_per_frame_idx))
+
+    def get_object_dict(self):
+        return self.dataset.get_object_dict()
 
     def __len__(self):
         return len(self.index)

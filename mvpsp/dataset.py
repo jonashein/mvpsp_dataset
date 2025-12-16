@@ -1,3 +1,5 @@
+import logging
+from collections import defaultdict
 from typing import (
     Union,
     Callable,
@@ -1313,23 +1315,33 @@ class MvpspMultiviewDataset(MVPSP):
     def __getitem__(self, idx):
         return [self.frames[i] for i in self.index[idx]]
 
-    def as_bop_targets(self, out_path: Path = None, enforce_n_cams: int = 0):
+    def as_bop_targets(self, out_path: Path = None, enforce_n_cams: int = 0, min_obj_visibility: int = 1):
         targets = []
         for i in range(len(self)):
             if enforce_n_cams > 0 and len(self[i]) != enforce_n_cams:
                 logging.info(f"Skipping frame {i} with cam_ids {','.join(map(str,sorted([frame['cam_id'] for frame in self[i]])))} due to enforced camera count of {enforce_n_cams}")
                 continue
             for frame in self[i]:
+                # We assume that at most one instance per category is visible in the scene!
+                sample_targets = defaultdict(list)  # map obj_id -> list of targets
+                sample_targets_observation_count = defaultdict(
+                    int
+                )  # map obj_id -> observation count
                 for obj in frame.get("objects", []):
-                    targets.append(
+                    obj_id = obj["obj_id"]
+                    sample_targets[obj_id].append(
                         {
                             "scene_id": frame["rec_id"] * 1000 + frame["cam_id"],
                             "multiview_id": i,
                             "im_id": frame["im_id"],
-                            "obj_id": obj["obj_id"],
+                            "obj_id": obj_id,
                             "inst_count": 1,
                         }
                     )
+                    sample_targets_observation_count[obj_id] += 1
+                for obj_id, instance_targets in sample_targets.items():
+                    if sample_targets_observation_count[obj_id] >= min_obj_visibility:
+                        targets.extend(instance_targets)
         if out_path is not None:
             out_path.parent.mkdir(parents=True, exist_ok=True)
             json.dump(targets, out_path.open("w"))

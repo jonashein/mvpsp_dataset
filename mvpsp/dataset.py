@@ -1238,7 +1238,9 @@ class MvpspMultiviewDataset(MVPSP):
 
         # filter samples based on given criteria
         for sample_idx in range(len(self)):
-            sample = self[sample_idx]
+            # assemble sample directly using references to allow persistent modifications
+            #sample = self[sample_idx]
+            sample = [self.frames.frames[i] for i in self.index[sample_idx]]
             # Copy requirement sets as they will be altered
             remaining_require_objs = (
                 require_objs.copy() if isinstance(require_objs, Set) else require_objs
@@ -1321,12 +1323,12 @@ class MvpspMultiviewDataset(MVPSP):
             if enforce_n_cams > 0 and len(self[i]) != enforce_n_cams:
                 logging.info(f"Skipping frame {i} with cam_ids {','.join(map(str,sorted([frame['cam_id'] for frame in self[i]])))} due to enforced camera count of {enforce_n_cams}")
                 continue
+            # We assume that at most one instance per category is visible in the scene!
+            sample_targets = defaultdict(list)  # map obj_id -> list of targets
+            sample_targets_observation_count = defaultdict(
+                int
+            )  # map obj_id -> observation count
             for frame in self[i]:
-                # We assume that at most one instance per category is visible in the scene!
-                sample_targets = defaultdict(list)  # map obj_id -> list of targets
-                sample_targets_observation_count = defaultdict(
-                    int
-                )  # map obj_id -> observation count
                 for obj in frame.get("objects", []):
                     obj_id = obj["obj_id"]
                     sample_targets[obj_id].append(
@@ -1339,9 +1341,9 @@ class MvpspMultiviewDataset(MVPSP):
                         }
                     )
                     sample_targets_observation_count[obj_id] += 1
-                for obj_id, instance_targets in sample_targets.items():
-                    if sample_targets_observation_count[obj_id] >= min_obj_visibility:
-                        targets.extend(instance_targets)
+            for obj_id, instance_targets in sample_targets.items():
+                if sample_targets_observation_count[obj_id] >= min_obj_visibility:
+                    targets.extend(instance_targets)
         if out_path is not None:
             out_path.parent.mkdir(parents=True, exist_ok=True)
             json.dump(targets, out_path.open("w"))
@@ -1641,7 +1643,9 @@ class MvpspSingleviewSequenceDataset(MVPSP):
                 require_gaze.copy() if isinstance(require_gaze, Set) else require_gaze
             )
             # get sample and frames to be evaluated
-            sample = self[sample_idx]
+            # assemble sample directly using references to allow persistent modifications
+            #sample = self[sample_idx]
+            sample = [self.frames.frames[i] for i in self.index[sample_idx]]
             if evaluate_first_frame_only or evaluate_last_frame_only:
                 orig_sample = sample
                 sample = []
